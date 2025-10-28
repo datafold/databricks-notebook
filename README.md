@@ -1,4 +1,4 @@
-# DBX DMA Translations Notebook
+# Databricks Notebook
 
 ## Setup
 
@@ -18,8 +18,8 @@ uv run jupyter notebook
 
 The server will start and provide a URL with an access token to open in your browser.
 
-## Debugging datafold-sdk
+## Local Development
 
-Create a `.env` file copied from `.env.example` and set `LOCAL_DATAFOLD_SDK_PATH` pointing to your local `datafold-sdk` repo.
-Jupyter notebook will then install using `pip install -e` which allows editing the sdk.
-To refresh the datafold-sdk to the latest version with your local changes just install it via the juniper notebook.
+Create a `.env` file copied from `.env.example` and set `LOCAL_DATABRICKS_NOTEBOOK_PATH` pointing to this repo.
+Jupyter notebook will then install using `pip install -e` which allows editing the python code.
+The code gets automatically refreshed every time you run a cell.
