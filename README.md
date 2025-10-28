@@ -5,7 +5,7 @@
 Install dependencies:
 
 ```bash
-uv sync
+uv sync --extra dev
 ```
 
 ## Running the Notebook

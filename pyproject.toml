@@ -3,7 +3,10 @@ name = "databricks-notebook"
 version = "0.1.0"
 description = "Databricks notebook utilities for DMA query translation"
 requires-python = ">=3.12"
-dependencies = [
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
     "jupyter>=1.1.1",
     # we need pip to install databricks-notebook in the notebook via pip
     "pip>=25.3",

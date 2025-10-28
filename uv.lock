@@ -296,16 +296,19 @@ wheels = [
 name = "databricks-notebook"
 version = "0.1.0"
 source = { virtual = "." }
-dependencies = [
+
+[package.optional-dependencies]
+dev = [
     { name = "jupyter" },
     { name = "pip" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "jupyter", specifier = ">=1.1.1" },
-    { name = "pip", specifier = ">=25.3" },
+    { name = "jupyter", marker = "extra == 'dev'", specifier = ">=1.1.1" },
+    { name = "pip", marker = "extra == 'dev'", specifier = ">=25.3" },
 ]
+provides-extras = ["dev"]
 
 [[package]]
 name = "debugpy"
