@@ -6,8 +6,23 @@ from databricks_notebook.utils import prepare_api_url, prepare_headers, post_dat
 
 __all__ = ['create_organization', 'translate_queries', 'view_translation_results_as_html']
 
+DEFAULT_HOST = "https://app.datafold.com"
 
-def create_organization(host: str, org_token: str) -> Tuple[str, int]:
+_notebook_host = None
+
+def _get_host(host: str | None) -> str:
+    """Get the host to use, checking notebook-level variable first.
+    If a host is explicitly provided, update _notebook_host for future calls.
+    """
+    global _notebook_host
+    if host is not None:
+        _notebook_host = host
+        return host
+    if _notebook_host is not None:
+        return _notebook_host
+    return DEFAULT_HOST
+
+def create_organization(org_token: str, host: str | None = None) -> Tuple[str, int]:
     """
     Call the /org API endpoint to create a new organization.
 
@@ -18,6 +33,7 @@ def create_organization(host: str, org_token: str) -> Tuple[str, int]:
     Returns:
         Tuple of (api_key, org_id)
     """
+    host = _get_host(host)
     url = prepare_api_url(host, "org")
     headers = {
         "Content-Type": "application/json",
@@ -36,7 +52,7 @@ def create_organization(host: str, org_token: str) -> Tuple[str, int]:
     return api_key, org_id
 
 
-def translate_queries(host: str, api_key: str, queries: List[str]) -> Tuple[int, int]:
+def translate_queries(api_key: str, queries: List[str], host: str | None = None) -> Tuple[int, int]:
     """
     Main entry point to translate a query end to end.
 
@@ -48,13 +64,14 @@ def translate_queries(host: str, api_key: str, queries: List[str]) -> Tuple[int,
     Returns:
         Tuple of (project_id, translation_id)
     """
+    host = _get_host(host)
 
     # Create DMA project
-    data_sources = _get_data_sources(host, api_key)
+    data_sources = _get_data_sources(api_key, host)
     source_data_source_id = [d for d in data_sources if d['type'] != "databricks"][0]['id']
     target_data_source_id = [d for d in data_sources if d['type'] == "databricks"][0]['id']
     print("Creating Translation Project...")
-    project = _create_dma_project(host, api_key, source_data_source_id, target_data_source_id, 'Databricks Notebook Project')
+    project = _create_dma_project(api_key, source_data_source_id, target_data_source_id, 'Databricks Notebook Project', host)
     project_id = project['id']
     print(f"Translation Project created with id {project_id}.")
 
@@ -69,12 +86,12 @@ def translate_queries(host: str, api_key: str, queries: List[str]) -> Tuple[int,
     print("Uploaded queries to translate.")
 
     # Start translating queries
-    translation_id = _start_translation(host, api_key, project_id)
+    translation_id = _start_translation(api_key, project_id, host)
     print(f"Started translation with id {translation_id}")
     return project_id, translation_id
 
 
-def view_translation_results_as_html(host: str, api_key: str, project_id: int, translation_id: int) -> str:
+def view_translation_results_as_html(api_key: str, project_id: int, translation_id: int, host: str | None = None) -> str:
     """
     View translation results
 
@@ -86,13 +103,15 @@ def view_translation_results_as_html(host: str, api_key: str, project_id: int, t
     Returns:
         str: html string to be displayed in Jupyter Notebook
     """
+    host = _get_host(host)
+    
     print("Waiting for Translation Results...")
-    translation_results = _wait_for_translation_results(host, api_key, project_id, translation_id, 5)
+    translation_results = _wait_for_translation_results(api_key, project_id, translation_id, 5, host)
     print("Translation Results:")
     return _translation_results_html(translation_results)
 
 
-def _get_data_sources(host: str, api_key: str) -> List[Dict]:
+def _get_data_sources(api_key: str, host: str | None = None) -> List[Dict]:
     """
     Fetch all data sources from the Datafold API.
 
@@ -103,13 +122,14 @@ def _get_data_sources(host: str, api_key: str) -> List[Dict]:
     Returns:
         List of data source dictionaries
     """
+    host = _get_host(host)
     url = prepare_api_url(host, "api/v1/data_sources")
     headers = prepare_headers(api_key)
     response = get_data(url, headers=headers)
     return response.json()
 
 
-def _create_dma_project(host: str, api_key: str, source_ds_id: int, target_ds_id: int, name: str) -> Dict:
+def _create_dma_project(api_key: str, source_ds_id: int, target_ds_id: int, name: str, host: str | None) -> Dict:
     """
     Create a DMA project.
 
@@ -123,6 +143,7 @@ def _create_dma_project(host: str, api_key: str, source_ds_id: int, target_ds_id
     Returns:
         Created project dictionary
     """
+    host = _get_host(host)
     url = prepare_api_url(host, "api/internal/dma/projects")
     headers = prepare_headers(api_key)
     headers["Content-Type"] = "application/json"
@@ -149,10 +170,10 @@ def _create_dma_project(host: str, api_key: str, source_ds_id: int, target_ds_id
 
 
 def _upload_queries(
-      host: str,
       api_key: str,
       project_id: int,
-      queries: List[str]
+      queries: List[str],
+      host: str = DEFAULT_HOST
   ) -> Dict:
     """
     Upload multiple queries to be translated.
@@ -166,6 +187,7 @@ def _upload_queries(
     Returns:
         dict: Response with upload statistics including per-file results
     """
+    host = _get_host(host)
     url = prepare_api_url(host, f"api/internal/dma/v2/projects/{project_id}/files")
     headers = prepare_headers(api_key)
     headers["Content-Type"] = "application/json"
@@ -183,7 +205,7 @@ def _upload_queries(
     return response.json()
 
 
-def _start_translation(host: str, api_key: str, project_id: int) -> int:
+def _start_translation(api_key: str, project_id: int, host: str = DEFAULT_HOST) -> int:
     """
     Start translation
 
@@ -195,6 +217,7 @@ def _start_translation(host: str, api_key: str, project_id: int) -> int:
     Returns:
         int: Translation task ID
     """
+    host = _get_host(host)
     url = prepare_api_url(host, f"api/internal/dma/v2/projects/{project_id}/translate/jobs")
     headers = prepare_headers(api_key)
     headers["Content-Type"] = "application/json"
@@ -208,7 +231,7 @@ def _start_translation(host: str, api_key: str, project_id: int) -> int:
     return translation_id
 
 
-def _wait_for_translation_results(host: str, api_key: str, project_id: int, translation_id: int, poll_interval: int) -> Dict:
+def _wait_for_translation_results(api_key: str, project_id: int, translation_id: int, poll_interval: int, host: str = DEFAULT_HOST) -> Dict:
     """
     Poll for translation completion
 
@@ -222,6 +245,7 @@ def _wait_for_translation_results(host: str, api_key: str, project_id: int, tran
     Returns:
         dict: Final translation result
     """
+    host = _get_host(host)
     url = prepare_api_url(host, f"api/internal/dma/v2/projects/{project_id}/translate/jobs/{translation_id}")
     headers = prepare_headers(api_key)
     headers["Content-Type"] = "application/json"
