@@ -4,7 +4,7 @@ from typing import List, Dict, Tuple
 from databricks_notebook.utils import prepare_api_url, prepare_headers, post_data, get_data
 
 
-__all__ = ['create_organization', 'translate_queries', 'view_translation_results_as_html']
+__all__ = ['create_organization', 'translate_queries', 'view_translation_results_as_html', 'translate_queries_and_render_results']
 
 DEFAULT_HOST = "https://app.datafold.com"
 
