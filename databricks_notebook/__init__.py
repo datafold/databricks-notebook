@@ -9,6 +9,7 @@ __all__ = ['create_organization', 'translate_queries', 'view_translation_results
 DEFAULT_HOST = "https://app.datafold.com"
 
 _notebook_host = None
+_current_api_key = None
 
 def _get_host(host: str | None) -> str:
     """Get the host to use, checking notebook-level variable first.
@@ -21,6 +22,24 @@ def _get_host(host: str | None) -> str:
     if _notebook_host is not None:
         return _notebook_host
     return DEFAULT_HOST
+
+def _get_current_api_key(org_token: str | None, host: str | None = None) -> str | None:
+    """Get the current API key."""
+    global _current_api_key
+    if _current_api_key is not None:
+        return _current_api_key
+    elif org_token is not None:
+        host = _get_host(host)
+        api_key, org_id = create_organization(org_token, host)
+        _set_current_api_key(api_key)
+        return api_key
+    else:
+        return None
+
+def _set_current_api_key(api_key: str) -> None:
+    """Set the current API key."""
+    global _current_api_key
+    _current_api_key = api_key
 
 def create_organization(org_token: str, host: str | None = None) -> Tuple[str, int]:
     """
@@ -45,6 +64,7 @@ def create_organization(org_token: str, host: str | None = None) -> Tuple[str, i
     response = post_data(url, headers=headers)
     result = response.json()
     api_key = result['api_token']
+    _set_current_api_key(api_key)
     org_id = result['org_id']
 
     print(f"Organization created with id {org_id}")
@@ -110,6 +130,15 @@ def view_translation_results_as_html(api_key: str, project_id: int, translation_
     print("Translation Results:")
     return _translation_results_html(translation_results)
 
+def translate_queries_and_render_results(queries: List[str], org_token: str, host: str | None = None) -> None:
+    api_key = _get_current_api_key(org_token, host)
+    if api_key is None:
+        raise ValueError("API key is not set. Please call create_organization or set the API key manually.")
+    project_id, translation_id = translate_queries(api_key, queries, host)
+    html = view_translation_results_as_html(api_key, project_id, translation_id)
+
+    from IPython.display import HTML, display
+    display(HTML(html))
 
 def _get_data_sources(api_key: str, host: str | None = None) -> List[Dict]:
     """
