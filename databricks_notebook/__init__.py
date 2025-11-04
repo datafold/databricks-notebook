@@ -318,9 +318,12 @@ def _translation_results_html(translation_results: Dict) -> str:
     html = []
     for model in translation_results['translated_models']:
         asset_name = model['asset_name']
+        status = model['translation_status']
+        icon = '⚠' if status == 'failed' else '✓'
+        button_text = f"{icon} {asset_name}" if status == 'failed' else asset_name
         html.append(f"""
         <button class="collapsible" onclick="toggleCollapse(this)">
-            {asset_name}
+            {button_text}
         </button>
         <div class="content">
             {_render_translated_model_as_html(model)}
@@ -401,6 +404,35 @@ def _render_translated_model_as_html(model: Dict) -> str:
     source_sql = model['source_sql']
     target_sql = model['target_sql'] or ''
     status = model['translation_status']
+    asset_name = model['asset_name']
+
+    # If translation failed, show warning instead of diff
+    if status == 'failed':
+        return f"""
+        <style>
+            .warning-box {{
+                background-color: #fff3cd;
+                border: 1px solid #ffc107;
+                border-left: 4px solid #ff9800;
+                padding: 20px;
+                margin: 10px 0;
+                font-family: sans-serif;
+            }}
+            .warning-title {{
+                color: #856404;
+                font-weight: bold;
+                font-size: 16px;
+                margin-bottom: 10px;
+            }}
+            .warning-message {{
+                color: #856404;
+            }}
+        </style>
+        <div class="warning-box">
+            <div class="warning-title">⚠ Translation Failed</div>
+            <div class="warning-message">The translation for "{asset_name}" could not be completed.</div>
+        </div>
+        """
 
     # Split into lines for comparison
     source_lines = source_sql.splitlines()
