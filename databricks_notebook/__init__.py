@@ -59,15 +59,13 @@ def create_organization(org_token: str, host: str | None = None) -> Tuple[str, i
         "Authorization": f"Bearer {org_token}"
     }
 
-    print("Creating Organization...")
-
     response = post_data(url, headers=headers)
     result = response.json()
     api_key = result['api_token']
     _set_current_api_key(api_key)
     org_id = result['org_id']
 
-    print(f"Organization created with id {org_id}")
+    print(f"✓ Organization created with id {org_id}")
 
     return api_key, org_id
 
@@ -90,24 +88,22 @@ def translate_queries(api_key: str, queries: List[str], host: str | None = None)
     data_sources = _get_data_sources(api_key, host)
     source_data_source_id = [d for d in data_sources if d['type'] != "databricks"][0]['id']
     target_data_source_id = [d for d in data_sources if d['type'] == "databricks"][0]['id']
-    print("Creating Translation Project...")
     project = _create_dma_project(api_key, source_data_source_id, target_data_source_id, 'Databricks Notebook Project', host)
     project_id = project['id']
-    print(f"Translation Project created with id {project_id}.")
+    print(f"✓ Translation Project created with id {project_id}.")
 
     # Upload queries to translate
-    print("Uploading queries to translate...")
     _upload_queries(
         host=host,
         api_key=api_key,
         project_id=project_id,
         queries=queries
     )
-    print("Uploaded queries to translate.")
+    print(f"✓ Uploaded queries to translate.")
 
     # Start translating queries
     translation_id = _start_translation(api_key, project_id, host)
-    print(f"Started translation with id {translation_id}")
+    print(f"✓ Started translation with id {translation_id}")
     return project_id, translation_id
 
 
@@ -125,9 +121,7 @@ def view_translation_results_as_html(api_key: str, project_id: int, translation_
     """
     host = _get_host(host)
     
-    print("Waiting for Translation Results...")
     translation_results = _wait_for_translation_results(api_key, project_id, translation_id, 5, host)
-    print("Translation Results:")
     return _translation_results_html(translation_results)
 
 def translate_queries_and_render_results(queries: List[str], org_token: str, host: str | None = None) -> None:
@@ -274,20 +268,41 @@ def _wait_for_translation_results(api_key: str, project_id: int, translation_id:
     Returns:
         dict: Final translation result
     """
+    from IPython.display import clear_output
+    import sys
+
     host = _get_host(host)
     url = prepare_api_url(host, f"api/internal/dma/v2/projects/{project_id}/translate/jobs/{translation_id}")
     headers = prepare_headers(api_key)
     headers["Content-Type"] = "application/json"
 
+    spinner = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    spinner_speed = 0.1  # seconds between spinner frames
+
+    last_check_time = 0
+    i = 0
+
     while True:
-        response = get_data(url, headers=headers)
-        result = response.json()
-        status = result["status"]
+        current_time = time.time()
 
-        if status in ["done", "failed"]:
-            return result
+        # Check API status at poll_interval
+        if current_time - last_check_time >= poll_interval:
+            response = get_data(url, headers=headers)
+            result = response.json()
+            status = result["status"]
 
-        time.sleep(poll_interval)
+            if status in ["done", "failed"]:
+                print(f"\r✓ Translation completed with status: {status}")
+                sys.stdout.flush()
+                return result
+
+            last_check_time = current_time
+
+        # Update spinner display more frequently
+        print(f"\r{spinner[i % len(spinner)]} Waiting for Translation Results...", end='')
+        sys.stdout.flush()
+        i += 1
+        time.sleep(spinner_speed)
 
 
 def _translation_results_html(translation_results: Dict) -> str:
