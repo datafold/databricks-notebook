@@ -180,7 +180,7 @@ def view_translation_results_as_html(
 def translate_queries_and_render_results(
     queries: List[str],
     org_token: str | None = None,
-    identity: dict[str, str] | None = None,
+    include_identity: bool = True,
     host: str | None = None
 ) -> None:
     """
@@ -189,15 +189,16 @@ def translate_queries_and_render_results(
     Args:
         queries: List of SQL queries to translate
         org_token: Organization token for authentication (defaults to DEFAULT_ORG_TOKEN)
-        identity: User identity information (auto-collected if not provided)
+        include_identity: Whether to collect and send identity information (defaults to True)
         host: Host URL for Datafold instance (defaults to DEFAULT_HOST)
     """
     # Use default org token if not provided
     if org_token is None:
         org_token = DEFAULT_ORG_TOKEN
 
-    # Auto-collect identity if not provided
-    if identity is None:
+    # Auto-collect identity if include_identity is True
+    identity = None
+    if include_identity:
         identity = get_context_info()
 
     api_key = _get_current_api_key(org_token, host)
