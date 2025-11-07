@@ -35,9 +35,12 @@ def get_context_info() -> dict[str, str]:
         dict: Context information including workspace_id, workspace_url, cluster_id, notebook_path, and user
     """
     try:
-        # Import dbutils from Databricks runtime
-        from dbruntime.dbutils import DBUtils
-        dbutils = DBUtils()
+        # Access the global dbutils object provided by Databricks runtime
+        import __main__
+        dbutils = getattr(__main__, 'dbutils', None)
+        if dbutils is None:
+            return {}
+
         context = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
         return {
             'workspace_id': context.workspaceId().get(),
@@ -46,8 +49,8 @@ def get_context_info() -> dict[str, str]:
             'notebook_path': context.notebookPath().get(),
             'user': context.userName().get()
         }
-    except ImportError:
-        # If not running in Databricks, return empty dict
+    except Exception:
+        # If not running in Databricks or any error occurs, return empty dict
         return {}
 
 def _get_identity() -> dict[str, str] | None:
