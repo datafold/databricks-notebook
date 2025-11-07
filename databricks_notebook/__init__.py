@@ -10,6 +10,19 @@ DEFAULT_HOST = "https://app.datafold.com"
 
 _notebook_host = None
 _current_api_key = None
+_identity = None
+
+def _get_identity() -> dict[str, str] | None:
+    """Get the identity."""
+    global _identity
+    if _identity is not None:
+        return _identity
+    return None
+
+def _set_identity(identity: dict[str, str] | None) -> None:
+    """Set the identity."""
+    global _identity
+    _identity = identity
 
 def _get_host(host: str | None) -> str:
     """Get the host to use, checking notebook-level variable first.
@@ -130,8 +143,9 @@ def view_translation_results_as_html(api_key: str, project_id: int, translation_
     print("Translation Results:")
     return _translation_results_html(translation_results)
 
-def translate_queries_and_render_results(queries: List[str], org_token: str, host: str | None = None) -> None:
+def translate_queries_and_render_results(queries: List[str], org_token: str, identity: dict[str, str], host: str | None = None) -> None:
     api_key = _get_current_api_key(org_token, host)
+    _set_identity(identity)
     if api_key is None:
         raise ValueError("API key is not set. Please call create_organization or set the API key manually.")
     project_id, translation_id = translate_queries(api_key, queries, host)
@@ -253,8 +267,8 @@ def _start_translation(api_key: str, project_id: int, host: str = DEFAULT_HOST) 
 
     response = post_data(
         url,
-        json_data={"project_id": project_id},
-        headers=headers
+        json_data={"project_id": project_id, "identity": _get_identity()},
+        headers=headers,
     )
     translation_id = response.json()["task_id"]
     return translation_id
