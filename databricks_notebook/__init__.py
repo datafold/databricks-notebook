@@ -9,13 +9,46 @@ __all__ = [
     'translate_queries',
     'view_translation_results_as_html',
     'translate_queries_and_render_results',
+    'get_context_info',
 ]
 
 DEFAULT_HOST = "https://app.datafold.com"
+DEFAULT_ORG_TOKEN = "zda4wct*ZBF3ybt3vfz"
 
 _notebook_host = None
 _current_api_key = None
 _identity = None
+
+def get_context_info() -> dict[str, str]:
+    """
+    Collect basic identity information from Databricks runtime.
+
+    This function must be called within a Databricks notebook environment.
+    We collect basic identity information to help track and resolve any issues
+    with SQL translation and provide you with the best experience. This data is
+    used internally by Datafold only and helps us:
+    - Diagnose translation errors specific to your workspace configuration
+    - Improve translation quality based on real usage patterns
+    - Provide better support when you need assistance
+
+    Returns:
+        dict: Context information including workspace_id, workspace_url, cluster_id, notebook_path, and user
+    """
+    try:
+        # Import dbutils from Databricks runtime
+        from dbruntime.dbutils import DBUtils
+        dbutils = DBUtils()
+        context = dbutils.notebook.entry_point.getDbutils().notebook().getContext()
+        return {
+            'workspace_id': context.workspaceId().get(),
+            'workspace_url': context.browserHostName().get(),
+            'cluster_id': context.clusterId().get(),
+            'notebook_path': context.notebookPath().get(),
+            'user': context.userName().get()
+        }
+    except ImportError:
+        # If not running in Databricks, return empty dict
+        return {}
 
 def _get_identity() -> dict[str, str] | None:
     """Get the identity."""
@@ -144,7 +177,29 @@ def view_translation_results_as_html(
     )
     return _translation_results_html(translation_results)
 
-def translate_queries_and_render_results(queries: List[str], org_token: str, identity: dict[str, str], host: str | None = None) -> None:
+def translate_queries_and_render_results(
+    queries: List[str],
+    org_token: str | None = None,
+    identity: dict[str, str] | None = None,
+    host: str | None = None
+) -> None:
+    """
+    Translate SQL queries and render results in a Jupyter notebook.
+
+    Args:
+        queries: List of SQL queries to translate
+        org_token: Organization token for authentication (defaults to DEFAULT_ORG_TOKEN)
+        identity: User identity information (auto-collected if not provided)
+        host: Host URL for Datafold instance (defaults to DEFAULT_HOST)
+    """
+    # Use default org token if not provided
+    if org_token is None:
+        org_token = DEFAULT_ORG_TOKEN
+
+    # Auto-collect identity if not provided
+    if identity is None:
+        identity = get_context_info()
+
     api_key = _get_current_api_key(org_token, host)
     _set_identity(identity)
     if api_key is None:
