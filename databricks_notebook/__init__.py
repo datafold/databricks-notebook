@@ -597,14 +597,6 @@ def _render_translated_model_as_html(model: Dict) -> str:
         .unchanged {{
             background-color: transparent;
         }}
-        .removed {{
-            background-color: #ffecec;
-            color: #d73a49;
-        }}
-        .added {{
-            background-color: #e6ffec;
-            color: #22863a;
-        }}
     </style>
 
     <p>Translation Status: <span class="status">{status}</span></p>
