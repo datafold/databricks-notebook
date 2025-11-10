@@ -162,11 +162,11 @@ def translate_queries(api_key: str, queries: List[str], host: str | None = None)
         api_key, source_data_source_id, target_data_source_id, 'Databricks Notebook Project', host
     )
     project_id = project['id']
-    print(f"✓ Translation Project created with id {project_id}.")
+    print(f"✓ Project created with id {project_id}")
 
     # Upload queries to translate
     _upload_queries(host=host, api_key=api_key, project_id=project_id, queries=queries)
-    print(f"✓ Uploaded queries to translate.")
+    print(f"✓ Queries uploaded")
 
     # Start translating queries
     translation_id = _start_translation(api_key, project_id, host)
@@ -397,7 +397,7 @@ def _wait_for_translation_results(
             last_check_time = current_time
 
         # Update spinner display more frequently
-        print(f"\r{spinner[i % len(spinner)]} Waiting for Translation Results...", end='')
+        print(f"\r{spinner[i % len(spinner)]} Waiting for translation results...", end='')
         sys.stdout.flush()
         i += 1
         time.sleep(spinner_speed)
