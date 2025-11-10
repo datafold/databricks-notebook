@@ -25,7 +25,7 @@ def create_organization(host: str, org_token: str) -> Tuple[str, int]:
         "Authorization": f"Bearer {org_token}"
     }
 
-    print("Creating Organization...")
+    print("Creating organization...")
 
     response = post_data(url, headers=headers)
     result = response.json()
@@ -54,10 +54,10 @@ def translate_queries(host: str, api_key: str, queries: List[str]) -> Tuple[int,
     data_sources = _get_data_sources(host, api_key)
     source_data_source_id = [d for d in data_sources if d['type'] != "databricks"][0]['id']
     target_data_source_id = [d for d in data_sources if d['type'] == "databricks"][0]['id']
-    print("Creating Translation Project...")
+    print("Creating project...")
     project = _create_dma_project(host, api_key, source_data_source_id, target_data_source_id, 'Databricks Notebook Project')
     project_id = project['id']
-    print(f"Translation Project created with id {project_id}.")
+    print(f"Project created with id {project_id}")
 
     # Upload queries to translate
     print("Uploading queries to translate...")
@@ -67,7 +67,7 @@ def translate_queries(host: str, api_key: str, queries: List[str]) -> Tuple[int,
         project_id=project_id,
         queries=queries
     )
-    print("Uploaded queries to translate.")
+    print("Queries uploaded")
 
     # Start translating queries
     translation_id = _start_translation(host, api_key, project_id)
@@ -87,9 +87,9 @@ def view_translation_results_as_html(host: str, api_key: str, project_id: int, t
     Returns:
         str: html string to be displayed in Jupyter Notebook
     """
-    print("Waiting for Translation Results...")
+    print("Waiting for translation results...")
     translation_results = _wait_for_translation_results(host, api_key, project_id, translation_id, 5)
-    print("Translation Results:")
+    print("Translation results:")
     return _translation_results_html(translation_results)
 
 
