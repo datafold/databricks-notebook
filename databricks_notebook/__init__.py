@@ -1,5 +1,6 @@
 import time
 import difflib
+from enum import Enum
 from typing import List, Dict, Tuple
 from databricks_notebook.utils import prepare_api_url, prepare_headers, post_data, get_data
 
@@ -14,6 +15,16 @@ __all__ = [
 
 DEFAULT_HOST = "https://app.datafold.com"
 DEFAULT_ORG_TOKEN = "zda4wct*ZBF3ybt3vfz"
+
+
+class TranslationJobStatus(str, Enum):
+    """Translation job statuses (for polling)"""
+    DONE = "done"
+    FAILED = "failed"
+
+
+# Translation result statuses (for individual queries)
+TRANSLATION_STATUS_SUCCESS = "valid_translation"
 
 _notebook_host = None
 _current_api_key = None
@@ -378,7 +389,7 @@ def _wait_for_translation_results(
             result = response.json()
             status = result["status"]
 
-            if status in ["done", "failed"]:
+            if status in [TranslationJobStatus.DONE, TranslationJobStatus.FAILED]:
                 print(f"\r✓ Translation completed with status: {status}")
                 sys.stdout.flush()
                 return result
@@ -407,7 +418,7 @@ def _translation_results_html(translation_results: Dict) -> str:
         asset_name = model['asset_name']
         status = model['translation_status']
         # Check for success status - anything else is a failure
-        icon = '✅' if status == 'valid_translation' else '⚠️'
+        icon = '✅' if status == TRANSLATION_STATUS_SUCCESS else '⚠️'
         button_text = f"{icon} {asset_name}"
         html.append(
             f"""
@@ -497,7 +508,7 @@ def _render_translated_model_as_html(model: Dict) -> str:
     asset_name = model['asset_name']
 
     # If translation failed, show warning instead of diff
-    if status != 'translated':
+    if status != TRANSLATION_STATUS_SUCCESS:
         return f"""
         <style>
             .warning-box {{
