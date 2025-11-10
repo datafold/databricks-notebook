@@ -19,6 +19,7 @@ _notebook_host = None
 _current_api_key = None
 _identity = None
 
+
 def get_context_info() -> dict[str, str]:
     """
     Collect basic identity information from Databricks runtime.
@@ -37,6 +38,7 @@ def get_context_info() -> dict[str, str]:
     try:
         # Access the global dbutils object provided by Databricks runtime
         import __main__
+
         dbutils = getattr(__main__, 'dbutils', None)
         if dbutils is None:
             return {}
@@ -47,11 +49,12 @@ def get_context_info() -> dict[str, str]:
             'workspace_url': context.browserHostName().get(),
             'cluster_id': context.clusterId().get(),
             'notebook_path': context.notebookPath().get(),
-            'user': context.userName().get()
+            'user': context.userName().get(),
         }
     except Exception:
         # If not running in Databricks or any error occurs, return empty dict
         return {}
+
 
 def _get_identity() -> dict[str, str] | None:
     """Get the identity."""
@@ -59,6 +62,7 @@ def _get_identity() -> dict[str, str] | None:
     if _identity is not None:
         return _identity
     return None
+
 
 def _set_identity(identity: dict[str, str] | None) -> None:
     """Set the identity."""
@@ -180,11 +184,12 @@ def view_translation_results_as_html(
     )
     return _translation_results_html(translation_results)
 
+
 def translate_queries_and_render_results(
     queries: List[str],
     org_token: str | None = None,
     include_identity: bool = True,
-    host: str | None = None
+    host: str | None = None,
 ) -> None:
     """
     Translate SQL queries and render results in a Jupyter notebook.
@@ -401,7 +406,8 @@ def _translation_results_html(translation_results: Dict) -> str:
     for model in translation_results['translated_models']:
         asset_name = model['asset_name']
         status = model['translation_status']
-        icon = '⚠️' if status == 'failed' else '✅'
+        # Check for success status - anything else is a failure
+        icon = '✅' if status == 'valid_translation' else '⚠️'
         button_text = f"{icon} {asset_name}"
         html.append(
             f"""
@@ -491,7 +497,7 @@ def _render_translated_model_as_html(model: Dict) -> str:
     asset_name = model['asset_name']
 
     # If translation failed, show warning instead of diff
-    if status == 'failed':
+    if status != 'translated':
         return f"""
         <style>
             .warning-box {{
@@ -514,7 +520,7 @@ def _render_translated_model_as_html(model: Dict) -> str:
         </style>
         <div class="warning-box">
             <div class="warning-title">⚠ Translation Failed</div>
-            <div class="warning-message">The translation for "{asset_name}" could not be completed.</div>
+            <div class="warning-message">The translation for "{asset_name}" could not be completed. Status: {status}</div>
         </div>
         """
 
