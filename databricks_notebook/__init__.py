@@ -23,8 +23,20 @@ class TranslationJobStatus(str, Enum):
     FAILED = "failed"
 
 
-# Translation result statuses (for individual queries)
-TRANSLATION_STATUS_SUCCESS = "valid_translation"
+class TranslationStatus(str, Enum):
+    """Translation result statuses (for individual queries)"""
+    NO_TRANSLATION_ATTEMPTS = "no_translation_attempts"
+    VALIDATION_PENDING = "validation_pending"
+    INVALID_TRANSLATION = "invalid_translation"
+    VALID_TRANSLATION = "valid_translation"
+
+
+class FailureReason(str, Enum):
+    """Reasons why a translation agent failed to complete its task"""
+    MAX_ITERATIONS = "max_iterations"
+    TOOL_ERROR = "tool_error"
+    RESIGNATION = "resignation"
+
 
 _notebook_host = None
 _current_api_key = None
@@ -418,7 +430,7 @@ def _translation_results_html(translation_results: Dict) -> str:
         asset_name = model['asset_name']
         status = model['translation_status']
         # Check for success status - anything else is a failure
-        icon = '✅' if status == TRANSLATION_STATUS_SUCCESS else '⚠️'
+        icon = '✅' if status == TranslationStatus.VALID_TRANSLATION else '⚠️'
         button_text = f"{icon} {asset_name}"
         html.append(
             f"""
@@ -508,7 +520,39 @@ def _render_translated_model_as_html(model: Dict) -> str:
     asset_name = model['asset_name']
 
     # If translation failed, show warning instead of diff
-    if status != TRANSLATION_STATUS_SUCCESS:
+    if status != TranslationStatus.VALID_TRANSLATION:
+        failure_summary = model.get('failure_summary')
+
+        # Build failure message
+        failure_content = f'<div class="warning-message">The translation for "{asset_name}" could not be completed. Status: {status}</div>'
+
+        if failure_summary:
+            problem = failure_summary.get('problem', '')
+            error_message = failure_summary.get('error_message', '')
+            solution = failure_summary.get('solution', '')
+            location = failure_summary.get('location')
+            reason = failure_summary.get('reason', '')
+
+            failure_content = f"""
+                <div class="failure-section">
+                    <div class="failure-label">Problem:</div>
+                    <div class="failure-text">{problem}</div>
+                </div>
+                {f'<div class="failure-section"><div class="failure-label">Location:</div><div class="failure-text">{location}</div></div>' if location else ''}
+                <div class="failure-section">
+                    <div class="failure-label">Error:</div>
+                    <div class="failure-text">{error_message}</div>
+                </div>
+                <div class="failure-section">
+                    <div class="failure-label">Solution:</div>
+                    <div class="failure-text">{solution}</div>
+                </div>
+                <div class="failure-section">
+                    <div class="failure-label">Reason:</div>
+                    <div class="failure-text">{reason}</div>
+                </div>
+            """
+
         return f"""
         <style>
             .warning-box {{
@@ -523,15 +567,30 @@ def _render_translated_model_as_html(model: Dict) -> str:
                 color: #856404;
                 font-weight: bold;
                 font-size: 16px;
-                margin-bottom: 10px;
+                margin-bottom: 15px;
             }}
             .warning-message {{
                 color: #856404;
             }}
+            .failure-section {{
+                margin: 12px 0;
+            }}
+            .failure-label {{
+                color: #856404;
+                font-weight: bold;
+                font-size: 13px;
+                margin-bottom: 4px;
+            }}
+            .failure-text {{
+                color: #856404;
+                font-size: 13px;
+                line-height: 1.5;
+                white-space: pre-wrap;
+            }}
         </style>
         <div class="warning-box">
             <div class="warning-title">⚠ Translation Failed</div>
-            <div class="warning-message">The translation for "{asset_name}" could not be completed. Status: {status}</div>
+            {failure_content}
         </div>
         """
 
