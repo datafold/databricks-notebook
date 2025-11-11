@@ -465,7 +465,17 @@ def _wait_for_translation_results(
             status = result["status"]
 
             if status in [TranslationJobStatus.DONE, TranslationJobStatus.FAILED]:
+                # Count translations
+                translated_models = result.get("translated_models", [])
+                total_translations = len(translated_models)
+                validated_count = sum(
+                    1 for model in translated_models
+                    if model.get("translation_status") == TranslationStatus.VALID_TRANSLATION
+                )
+                
                 print(f"\r✓ Translation completed with status: {status}")
+                if total_translations > 0:
+                    print(f"✓ Validated {validated_count} out of {total_translations} translations")
                 sys.stdout.flush()
                 return result
 
