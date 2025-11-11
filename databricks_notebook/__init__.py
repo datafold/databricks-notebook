@@ -11,6 +11,7 @@ __all__ = [
     'translate_queries',
     'view_translation_results_as_html',
     'translate_queries_and_render_results',
+    'view_last_translation',
     'get_context_info',
 ]
 
@@ -45,6 +46,8 @@ class FailureReason(str, Enum):
 _notebook_host = None
 _current_api_key = None
 _identity = None
+_last_project_id = None
+_last_translation_id = None
 
 
 def get_context_info() -> dict[str, str]:
@@ -187,6 +190,12 @@ def translate_queries(api_key: str, queries: List[str], host: str | None = None)
     # Start translating queries
     translation_id = _start_translation(api_key, project_id, host)
     print(f"✓ Started translation with id {translation_id}")
+
+    # Store for later retrieval
+    global _last_project_id, _last_translation_id
+    _last_project_id = project_id
+    _last_translation_id = translation_id
+
     return project_id, translation_id
 
 
@@ -244,6 +253,56 @@ def translate_queries_and_render_results(
         )
     project_id, translation_id = translate_queries(api_key, queries, host)
     html = view_translation_results_as_html(api_key, project_id, translation_id)
+
+    from IPython.display import HTML, display
+
+    display(HTML(html))
+
+
+def view_last_translation(
+    org_token: str | None = None,
+    host: str | None = None,
+) -> None:
+    """
+    Re-display the results of the last translation.
+
+    Useful for debugging - fetches and displays results without re-running the translation.
+
+    Args:
+        org_token: Organization token for authentication (defaults to DEFAULT_ORG_TOKEN)
+        host: Host URL for Datafold instance (defaults to DEFAULT_HOST)
+
+    Example:
+        view_last_translation()
+    """
+    global _last_project_id, _last_translation_id
+
+    if _last_project_id is None or _last_translation_id is None:
+        print("No previous translation found. Run translate_queries_and_render_results() first.")
+        return
+
+    # Use default org token if not provided
+    if org_token is None:
+        org_token = DEFAULT_ORG_TOKEN
+
+    api_key = _get_current_api_key(org_token, host)
+    if api_key is None:
+        raise ValueError(
+            "API key is not set. Please call create_organization or set the API key manually."
+        )
+
+    print(f"Fetching results for project {_last_project_id}, translation {_last_translation_id}...")
+
+    # Fetch results directly without waiting (results should already be available)
+    host = _get_host(host)
+    url = prepare_api_url(host, f"api/internal/dma/v2/projects/{_last_project_id}/translate/jobs/{_last_translation_id}")
+    headers = prepare_headers(api_key)
+    headers["Content-Type"] = "application/json"
+
+    response = get_data(url, headers=headers)
+    result = response.json()
+
+    html = _translation_results_html(result)
 
     from IPython.display import HTML, display
 
@@ -537,12 +596,14 @@ def _render_translated_model_as_html(model: Dict) -> str:
     status = model['translation_status']
     asset_name = model['asset_name']
 
-    # If translation failed, show warning instead of diff
-    if status != TranslationStatus.VALID_TRANSLATION:
-        failure_summary = model.get('failure_summary')
+    # Determine what we have
+    has_translation_result = target_sql and target_sql.strip()
+    is_failed = status != TranslationStatus.VALID_TRANSLATION
 
-        # Build failure message
-        failure_content = f'<div class="warning-message">The translation for "{asset_name}" could not be completed. Status: {status}</div>'
+    # Build warning HTML if failed
+    warning_html = ""
+    if is_failed:
+        failure_summary = model.get('failure_summary')
 
         if failure_summary:
             problem = failure_summary.get('problem', '')
@@ -570,84 +631,102 @@ def _render_translated_model_as_html(model: Dict) -> str:
                     <div class="failure-text">{reason}</div>
                 </div>
             """
+        else:
+            failure_content = f'<div class="warning-message">The translation for "{asset_name}" could not be completed. Status: {status}</div>'
 
-        return f"""
-        <style>
-            .warning-box {{
-                background-color: #fff3cd;
-                border: 1px solid #ffc107;
-                border-left: 4px solid #ff9800;
-                padding: 20px;
-                margin: 10px 0;
-                font-family: sans-serif;
-            }}
-            .warning-title {{
-                color: #856404;
-                font-weight: bold;
-                font-size: 16px;
-                margin-bottom: 15px;
-            }}
-            .warning-message {{
-                color: #856404;
-            }}
-            .failure-section {{
-                margin: 12px 0;
-            }}
-            .failure-label {{
-                color: #856404;
-                font-weight: bold;
-                font-size: 13px;
-                margin-bottom: 4px;
-            }}
-            .failure-text {{
-                color: #856404;
-                font-size: 13px;
-                line-height: 1.5;
-                white-space: pre-wrap;
-            }}
-        </style>
+        warning_html = f"""
         <div class="warning-box">
             <div class="warning-title">⚠ Translation Failed</div>
             {failure_content}
         </div>
         """
 
-    # Split into lines for comparison
-    source_lines = source_sql.splitlines()
-    target_lines = target_sql.splitlines()
+    # Build diff HTML if we have translation results
+    diff_html = ""
+    if has_translation_result:
+        source_lines = source_sql.splitlines()
+        target_lines = target_sql.splitlines()
 
-    # Create a differ
-    differ = difflib.Differ()
-    diff = list(differ.compare(source_lines, target_lines))
+        differ = difflib.Differ()
+        diff = list(differ.compare(source_lines, target_lines))
 
-    # Build HTML with highlighted differences
-    source_html = []
-    target_html = []
+        source_html = []
+        target_html = []
 
-    i = 0
-    while i < len(diff):
-        line = diff[i]
+        i = 0
+        while i < len(diff):
+            line = diff[i]
 
-        if line.startswith('  '):  # Unchanged line
-            content = line[2:]
-            source_html.append(f'<div class="line unchanged">{content}</div>')
-            target_html.append(f'<div class="line unchanged">{content}</div>')
-            i += 1
-        elif line.startswith('- '):  # Line only in source
-            content = line[2:]
-            source_html.append(f'<div class="line removed">{content}</div>')
-            i += 1
-        elif line.startswith('+ '):  # Line only in target
-            content = line[2:]
-            target_html.append(f'<div class="line added">{content}</div>')
-            i += 1
-        elif line.startswith('? '):  # Hint line (skip)
-            i += 1
-        else:
-            i += 1
+            if line.startswith('  '):  # Unchanged line
+                content = line[2:]
+                source_html.append(f'<div class="line unchanged">{content}</div>')
+                target_html.append(f'<div class="line unchanged">{content}</div>')
+                i += 1
+            elif line.startswith('- '):  # Line only in source
+                content = line[2:]
+                source_html.append(f'<div class="line removed">{content}</div>')
+                i += 1
+            elif line.startswith('+ '):  # Line only in target
+                content = line[2:]
+                target_html.append(f'<div class="line added">{content}</div>')
+                i += 1
+            elif line.startswith('? '):  # Hint line (skip)
+                i += 1
+            else:
+                i += 1
 
-    html = f"""
+        diff_html = f"""
+        <div class="sql-container">
+            <div class="sql-column">
+                <h3>Snowflake SQL</h3>
+                {''.join(source_html)}
+            </div>
+            <div class="sql-column">
+                <h3>Databricks SQL</h3>
+                {''.join(target_html)}
+            </div>
+        </div>
+        """
+
+    # Assemble final HTML
+    content_html = warning_html + diff_html
+    if not content_html:
+        content_html = "<p>No translation results available.</p>"
+
+    return f"""
     <style>
+        .warning-box {{
+            background-color: #fff3cd;
+            border: 1px solid #ffc107;
+            border-left: 4px solid #ff9800;
+            padding: 20px;
+            margin: 10px 0;
+            font-family: sans-serif;
+        }}
+        .warning-title {{
+            color: #856404;
+            font-weight: bold;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }}
+        .warning-message {{
+            color: #856404;
+        }}
+        .failure-section {{
+            margin: 12px 0;
+        }}
+        .failure-label {{
+            color: #856404;
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 4px;
+        }}
+        .failure-text {{
+            color: #856404;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }}
         .sql-container {{
             display: flex;
             gap: 20px;
@@ -684,17 +763,5 @@ def _render_translated_model_as_html(model: Dict) -> str:
         }}
     </style>
 
-    <p>Translation Status: <span class="status">{status}</span></p>
-    <div class="sql-container">
-        <div class="sql-column">
-            <h3>Snowflake SQL</h3>
-            {''.join(source_html)}
-        </div>
-        <div class="sql-column">
-            <h3>Databricks SQL</h3>
-            {''.join(target_html)}
-        </div>
-    </div>
+    {content_html}
     """
-
-    return html
