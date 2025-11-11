@@ -1,5 +1,6 @@
 import time
 import difflib
+import re
 from enum import Enum
 from typing import List, Dict, Tuple
 from databricks_notebook.utils import prepare_api_url, prepare_headers, post_data, get_data
@@ -19,12 +20,14 @@ DEFAULT_ORG_TOKEN = "zda4wct*ZBF3ybt3vfz"
 
 class TranslationJobStatus(str, Enum):
     """Translation job statuses (for polling)"""
+
     DONE = "done"
     FAILED = "failed"
 
 
 class TranslationStatus(str, Enum):
     """Translation result statuses (for individual queries)"""
+
     NO_TRANSLATION_ATTEMPTS = "no_translation_attempts"
     VALIDATION_PENDING = "validation_pending"
     INVALID_TRANSLATION = "invalid_translation"
@@ -33,6 +36,7 @@ class TranslationStatus(str, Enum):
 
 class FailureReason(str, Enum):
     """Reasons why a translation agent failed to complete its task"""
+
     MAX_ITERATIONS = "max_iterations"
     TOOL_ERROR = "tool_error"
     RESIGNATION = "resignation"
@@ -426,12 +430,26 @@ def _translation_results_html(translation_results: Dict) -> str:
         str: HTML string for display
     """
     html = []
-    for model in translation_results['translated_models']:
-        asset_name = model['asset_name']
+
+    # Sort models by filename with natural sorting (query_1, query_2, ..., query_10, query_11)
+    def natural_sort_key(model: Dict) -> tuple:
+        """Extract numeric parts from filename for natural sorting"""
+        filename = model.get('source_filename') or model['asset_name']
+        # Extract numbers from the filename
+        numbers = re.findall(r'\d+', filename)
+        if numbers:
+            return (int(numbers[0]), filename)
+        return (0, filename)
+
+    models = translation_results['translated_models']
+    models_sorted = sorted(models, key=natural_sort_key)
+
+    for model in models_sorted:
+        filename = model.get('source_filename') or model['asset_name']
         status = model['translation_status']
         # Check for success status - anything else is a failure
         icon = '✅' if status == TranslationStatus.VALID_TRANSLATION else '⚠️'
-        button_text = f"{icon} {asset_name}"
+        button_text = f"{icon} {filename}"
         html.append(
             f"""
         <button class="collapsible" onclick="toggleCollapse(this)">
