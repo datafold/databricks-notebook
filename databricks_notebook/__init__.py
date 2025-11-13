@@ -220,23 +220,32 @@ def view_translation_results_as_html(
     )
     return _translation_results_html(translation_results)
 
-
-def translate_queries_and_render_results(
-    queries: List[str],
-    org_token: str | None = None,
-    include_identity: bool = True,
-    host: str | None = None,
-) -> None:
+def view_translation_results_as_dict(
+    api_key: str, project_id: int, translation_id: int, host: str | None = None
+) -> dict:
     """
-    Translate SQL queries and render results in a Jupyter notebook.
+    View translation results
 
     Args:
-        queries: List of SQL queries to translate
-        org_token: Organization token for authentication (defaults to DEFAULT_ORG_TOKEN)
-        include_identity: Whether to collect and send identity information (defaults to True)
-        host: Host URL for Datafold instance (defaults to DEFAULT_HOST)
+        host: Host URL for Datafold instance (e.g., "https://app.datafold.com")
+        api_key: Authentication token
+        project_id: Project ID to translate
+        translation_id: Translation ID used to translate
+    Returns:
+        str: html string to be displayed in Jupyter Notebook
     """
-    # Use default org token if not provided
+    host = _get_host(host)
+
+    translation_results = _wait_for_translation_results(
+        api_key, project_id, translation_id, 5, host
+    )
+    return translation_results
+
+def translate_queries_and_render_results(queries: List[str],
+    org_token: str | None = None,
+    include_identity: bool = True,
+    host: str | None = None) -> None:
+        # Use default org token if not provided
     if org_token is None:
         org_token = DEFAULT_ORG_TOKEN
 
@@ -257,6 +266,28 @@ def translate_queries_and_render_results(
     from IPython.display import HTML, display
 
     display(HTML(html))
+
+def translate_queries_and_get_results(queries: List[str],
+    org_token: str | None = None,
+    include_identity: bool = True,
+    host: str | None = None) -> dict:
+    if org_token is None:
+        org_token = DEFAULT_ORG_TOKEN
+
+    # Auto-collect identity if include_identity is True
+    identity = None
+    if include_identity:
+        identity = get_context_info()
+
+    api_key = _get_current_api_key(org_token, host)
+    _set_identity(identity)
+    if api_key is None:
+        raise ValueError(
+            "API key is not set. Please call create_organization or set the API key manually."
+        )
+    project_id, translation_id = translate_queries(api_key, queries, host)
+    translation_results = view_translation_results_as_dict(api_key, project_id, translation_id)
+    return translation_results
 
 
 def view_last_translation(
