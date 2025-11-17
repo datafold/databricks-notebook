@@ -245,8 +245,8 @@ def view_translation_results_as_dict(
 
 def translate_queries_and_render_results(
     queries: List[str],
-    source_type: str | None = None,
-    target_type: str | None = None,
+    source_type: str = 'snowflake',
+    target_type: str = 'databricks',
     org_token: str | None = None,
     include_identity: bool = True,
     host: str | None = None,
@@ -286,22 +286,12 @@ def translate_queries_and_render_results(
     # Create DMA project with specified source and target types
     data_sources = _get_data_sources(api_key, host)
 
-    # Determine target type (default to databricks for backward compatibility)
-    if target_type is None:
-        target_type = 'databricks'
-
     # Find source and target data sources
-    if source_type:
-        source_ds = next((d for d in data_sources if d['type'] == source_type), None)
-        if source_ds is None:
-            raise ValueError(
-                f"No {source_type} data source found. Please configure a {source_type} data source."
-            )
-    else:
-        # Use first non-target data source
-        source_ds = next((d for d in data_sources if d['type'] != target_type), None)
-        if source_ds is None:
-            raise ValueError(f"No source data source found (looking for non-{target_type}).")
+    source_ds = next((d for d in data_sources if d['type'] == source_type), None)
+    if source_ds is None:
+        raise ValueError(
+            f"No {source_type} data source found. Please configure a {source_type} data source."
+        )
 
     target_ds = next((d for d in data_sources if d['type'] == target_type), None)
     if target_ds is None:
