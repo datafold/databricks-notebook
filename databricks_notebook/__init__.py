@@ -3,7 +3,7 @@ import difflib
 import re
 from enum import Enum
 from typing import List, Dict, Tuple
-from dma_sdk.utils import prepare_api_url, prepare_headers, post_data, get_data
+from databricks_notebook.utils import prepare_api_url, prepare_headers, post_data, get_data
 
 
 __all__ = [
